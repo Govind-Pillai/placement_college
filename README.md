@@ -22,7 +22,7 @@ Clone the repository:
 
 ``` Bash
 
-git clone [https://github.com/Govind-Pillai/placement_college.git](https://github.com/Govind-Pillai/placement_college.git)
+git clone https://github.com/Govind-Pillai/placement_college.git
 cd placement_college
 ```
 Install dependencies:
