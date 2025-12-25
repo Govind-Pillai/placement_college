@@ -41,7 +41,7 @@ Run the Application:
 
 ```Bash
 
-python -m streamlit run app.py
+python -m streamlit run ui_app.py
 ```
 
 ## Project Structure
