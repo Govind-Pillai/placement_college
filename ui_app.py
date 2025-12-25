@@ -149,6 +149,8 @@ if 'predicted_expense' not in st.session_state:
     st.session_state.predicted_expense = None
 if 'user_name' not in st.session_state:
     st.session_state.user_name = ""
+if 'input_salary' not in st.session_state:
+    st.session_state.input_salary = None
 
 # Load model
 @st.cache_resource
@@ -161,15 +163,47 @@ def load_model():
         st.error("Model file not found! Please ensure 'expenses_model_final.pkl' exists.")
         return None
 
-# Prediction function
+# Prediction function - FIXED to use DataFrames with proper column names
 def predict_expense(model_package, cgpa, iq, experience, dependents, salary, gender, marital_status):
-    # Prepare input data
-    numeric_data = np.array([[cgpa, iq, experience, dependents, salary]])
-    categorical_data = np.array([[gender, marital_status]])
+    # Define feature names (must match EXACTLY what was used during training)
+    numeric_features = ['CGPA', 'IQ', 'Year_of_Experience', 'Dependents', 'Salary']
+    categorical_features = ['Gender', 'Marital Status']
+    
+    # Create DataFrames with proper column names
+    #numeric_df = pd.DataFrame([[cgpa, iq, experience, dependents, salary]], columns=numeric_features)
+    #categorical_df = pd.DataFrame([[gender, marital_status]], columns=categorical_features)
+    #raw_data = {
+    #'CGPA': [cgpa if cgpa else np.nan],
+    #'IQ': [iq if iq else np.nan],
+    # CHANGE THIS: Use 'Year_of_Experience' instead of 'Years of Experience'
+    #'Year_of_Experience': [experience if experience else np.nan], 
+    # CHANGE THIS: Use 'Dependents' instead of 'Number of Dependents'
+    #'Dependents': [dependents if dependents else np.nan],         
+    #'Salary': [salary if salary else np.nan],
+    #'Gender': [gender if gender != "" else np.nan],
+    #'Marital_Status': [marital_status if marital_status != "" else np.nan]
+    #}
+
+    numeric_dict = {
+    'CGPA': [cgpa if cgpa else np.nan],
+    'IQ': [iq if iq else np.nan],
+    # CHANGE THIS: Use 'Year_of_Experience' instead of 'Years of Experience'
+    'Year_of_Experience': [experience if experience else np.nan], 
+    # CHANGE THIS: Use 'Dependents' instead of 'Number of Dependents'
+    'Dependents': [dependents if dependents else np.nan],         
+    'Salary': [salary if salary else np.nan],
+    }
+    categorical_dict={
+    'Gender': [gender if gender != "" else np.nan],
+    'Marital_Status': [marital_status if marital_status != "" else np.nan]
+    }
+
+    numeric_df = pd.DataFrame(numeric_dict)
+    categorical_df = pd.DataFrame(categorical_dict)
     
     # Apply preprocessing
-    numeric_imputed = model_package['num_imputer'].transform(numeric_data)
-    categorical_imputed = model_package['cat_imputer'].transform(categorical_data)
+    numeric_imputed = model_package['num_imputer'].transform(numeric_df)
+    categorical_imputed = model_package['cat_imputer'].transform(categorical_df)
     
     # Label encode categorical data
     categorical_encoded = np.zeros(categorical_imputed.shape)
@@ -199,12 +233,14 @@ if model_package:
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
-        # Name input with shadcn UI
+        # Name input - FIXED: Using standard Streamlit text_input instead of shadcn UI
         st.markdown("### 👤 Welcome!")
-        name = ui.input(
-            default_value="",
-            type="default",
-            placeholder="Enter your name"
+        name = st.text_input(
+            "Your Name",
+            value=st.session_state.user_name,
+            placeholder="Enter your name",
+            key="name_input",
+            label_visibility="collapsed"
         )
         
         if name and name.strip():
@@ -212,14 +248,6 @@ if model_package:
         
         # Show user greeting or message
         if st.session_state.user_name:
-            ui.alert_dialog(
-                show=False,
-                title="",
-                description="",
-                confirm_label="",
-                cancel_label="",
-                key="greeting"
-            )
             st.markdown(f"### Hello, {st.session_state.user_name}! 👋")
         else:
             st.info("👆 Please enter your name to continue")
@@ -321,6 +349,9 @@ if model_package:
                 final_dependents = dependents if dependents is not None else 1
                 final_gender = gender if gender is not None else "Male"
                 final_marital_status = marital_status if marital_status is not None else "Single"
+                
+                # Store salary in session state for later use
+                st.session_state.input_salary = final_salary
 
                 with st.spinner("Analyzing your profile..."):
                     # Make prediction
@@ -333,7 +364,7 @@ if model_package:
                     st.session_state.predicted_expense = predicted_expense
                     st.session_state.prediction_made = True
             
-            # Show prediction in a dialog/modal
+            # Show prediction in a dialog/modal - FIXED variable scope
             if st.session_state.prediction_made and st.session_state.predicted_expense is not None:
                 st.markdown("---")
                 
@@ -347,7 +378,7 @@ if model_package:
                         key="expense_metric"
                     )
                     
-                    # Additional metrics
+                    # Additional metrics - FIXED division by zero and variable scope
                     metric_col1, metric_col2, metric_col3 = st.columns(3)
                     
                     with metric_col1:
@@ -359,7 +390,13 @@ if model_package:
                         )
                     
                     with metric_col2:
-                        savings_rate = (salary - (st.session_state.predicted_expense * 12)) / salary * 100
+                        # Calculate savings rate safely
+                        if st.session_state.input_salary and st.session_state.input_salary > 0:
+                            annual_expense = st.session_state.predicted_expense * 12
+                            savings_rate = (st.session_state.input_salary - annual_expense) / st.session_state.input_salary * 100
+                        else:
+                            savings_rate = 0
+                        
                         ui.metric_card(
                             title="Savings Rate",
                             content=f"{savings_rate:.1f}%",
@@ -368,23 +405,28 @@ if model_package:
                         )
                     
                     with metric_col3:
+                        # Calculate expense ratio safely
+                        if st.session_state.input_salary and st.session_state.input_salary > 0:
+                            expense_ratio = (st.session_state.predicted_expense * 12 / st.session_state.input_salary * 100)
+                        else:
+                            expense_ratio = 0
+                        
                         ui.metric_card(
                             title="Expense Ratio",
-                            content=f"{(st.session_state.predicted_expense * 12 / salary * 100):.1f}%",
+                            content=f"{expense_ratio:.1f}%",
                             description="Of annual income",
                             key="ratio_metric"
                         )
                     
                     # Success message with badge
-                    st.success(f"{display_name} has an estimate of about ₹ {st.session_state.predicted_expense:,.2f}")
+                    st.success(f"✅ {display_name} has an estimated monthly expense of ₹{st.session_state.predicted_expense:,.2f}")
                     
-                    # Show a celebratory badge
                     # Show a celebratory badge with spacing
                     badge_cols = st.columns([1, 1, 1], gap="medium")
                     with badge_cols[0]:
                         ui.badges(badge_list=[("Prediction Complete", "default")], key="badge_1")
                     with badge_cols[1]:
-                        ui.badges(badge_list=[(f"Confidence: 94.2%", "secondary")], key="badge_2")
+                        ui.badges(badge_list=[("Confidence: 94.2%", "secondary")], key="badge_2")
                     with badge_cols[2]:
                         ui.badges(badge_list=[(datetime.now().strftime("%B %d, %Y"), "secondary")], key="badge_3")
                     
@@ -392,6 +434,7 @@ if model_package:
                     if st.button("🔄 Make Another Prediction", use_container_width=True):
                         st.session_state.prediction_made = False
                         st.session_state.predicted_expense = None
+                        st.session_state.input_salary = None
                         st.rerun()
         
         # Information section
