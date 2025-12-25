@@ -35,7 +35,7 @@ Train the model (Optional - model is already provided):
 
 ```Bash
 
-python train.py
+python main.py
 ```
 Run the Application:
 
